@@ -10,6 +10,18 @@ the fewer moving parts between me and a broken scrape, the better. Scale-out poi
 crawl grows past a few thousand pages or needs residential egress, the fetch step moves to a
 queue (Redis + RQ) with workers I can add, while Postgres and the site stay where they are.
 
+## Where the model runs
+
+The prototype does its extraction with `qwen3:8b` on my own machine through Ollama, which
+proves the pipeline needs no paid API to work. That does not survive the move to a CPX21: an
+8B model needs more RAM than the box has, and on shared CPU it would turn a four-minute job
+into an hour. So production uses the Claude API (Haiku) and keeps the local path as the dev
+and offline option — the provider is a flag, not a rewrite, which is why it's built that way.
+
+The alternative, if keeping the data on our own hardware matters, is a GPU box — a Hetzner
+GEX44 is roughly €180/month, an order of magnitude more than the API line below. That is a
+data-residency decision, not a cost one, and nothing here needs it.
+
 ## Database and backups
 
 Postgres 17. Three tables: `casinos`, `bonuses` (current state, one row per casino), and
@@ -29,6 +41,11 @@ the record proxied — free CDN in front of a static page, and the origin IP sta
 Caddy on the box terminates TLS with automatic Let's Encrypt certs and renewal; HSTS on. The
 public site is static HTML built from the database, so Cloudflare serves nearly all of it from
 cache and the origin only gets hit on a purge after each build.
+
+The prototype page is on GitHub Pages behind a CNAME, which is the same shape at zero cost:
+static output, a CDN, an automatic certificate. The reason production moves off it is that the
+page stops being static output committed to a repo once it's built from a database on a
+schedule.
 
 ## Scheduling and knowing it failed
 
@@ -50,6 +67,12 @@ Silence is the enemy, so the alerting is layered:
   current.
 - **Sentry** for unhandled exceptions, alerts to a Slack webhook, Healthchecks escalating to
   email and SMS.
+
+The same principle already shows up in the prototype. A scraper that refuses to scrape looks
+well-behaved, and an extractor that reads the wrong row on a page returns a perfectly valid
+number. Both are silent failures, so `validate()` cross-checks every extracted percentage
+against the source URL slug, and the per-record warnings travel into the JSON rather than to
+a log nobody reads.
 
 Cost control worth doing on day one: hash the extracted page text and only call the model when
 the hash changes. Bonus terms move maybe weekly, so steady-state LLM spend drops by an order
@@ -74,17 +97,19 @@ is the argument for leaning on the model for interpretation and keeping the pars
 
 # Five lines on AI
 
-1. Built with Claude (Claude Opus 5 in Claude Code); the scraper's extraction step calls
-   `claude-haiku-5-5` through the Anthropic API.
-2. It was confidently wrong about the source: it proposed casino.guru on reputation and started
-   writing a parser for it before anything had been fetched.
-3. I caught it by actually fetching the page before trusting the plan — casino.guru geo-gates,
-   and from this IP the wagering and minimum-deposit fields render as "No bonuses available for
-   players from Ohio" and are absent from the HTML entirely.
-4. Same check killed lcb.org, whose `robots.txt` disallows the bot outright — worth reading
-   rather than assuming.
-5. Second correction: on the AskGamblers pages the model will happily read a neighbouring offer
-   card (a 2nd-deposit bonus, or another casino in the sidebar), so the prompt names that trap
-   and `validate()` cross-checks the returned percentage against the source URL slug.
+1. Built with Claude (Claude Opus 5 in Claude Code). The scraper's extraction step runs
+   `qwen3:8b` locally via Ollama by default; `--provider anthropic` switches it to the API.
+2. The bug worth reporting: its `robots.txt` check reported a confident "robots.txt disallows"
+   for all three target URLs, and the run stopped having scraped nothing.
+3. Nothing was actually disallowed. `RobotFileParser.read()` fetches robots.txt with urllib's
+   own user agent, the CDN 403s it, and `read()` swallows that error and sets `disallow_all` —
+   so every permission check returns False and the failure reads as politeness.
+4. I caught it because I'd read AskGamblers' robots.txt myself before writing any code and knew
+   those paths were permitted. The fix fetches robots.txt with our own user agent and treats an
+   unreadable one as a loud failure; two tests pin the real rules so it can't regress quietly.
+5. The lesson I'd carry: AI mistakes that fail in the *safe* direction are the expensive ones,
+   because nothing looks broken. The extraction itself was fine — an 8B local model got all
+   twelve fields right, including distinguishing `40xb` from `25x(d+b)` — so the model wasn't
+   the risk. Its glue code was.
 
-**Time taken:** _<fill in>_
+**Time taken:** 1h50m
