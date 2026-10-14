@@ -1,11 +1,11 @@
 {
   "source": "https://www.askgamblers.com",
-  "scraped_at": "2026-10-14T09:12:00+00:00",
-  "model": "claude-haiku-5-5",
+  "scraped_at": "2026-10-14T14:22:51+00:00",
+  "model": "ollama:qwen3:8b",
   "casinos": [
     {
       "casino": "Rokubet Casino",
-      "welcome_bonus": "100% up to 500 EUR, + 100 free spins",
+      "welcome_bonus": "100% up to 500 EUR + 100 free spins",
       "wagering_multiplier": 40,
       "wagering_basis": "bonus",
       "min_deposit": 15,
@@ -17,7 +17,7 @@
     },
     {
       "casino": "BetBeast Casino",
-      "welcome_bonus": "250% up to 1000 EUR, + 250 free spins",
+      "welcome_bonus": "250% up to 1000 EUR + 250 free spins",
       "wagering_multiplier": 25,
       "wagering_basis": "deposit+bonus",
       "min_deposit": 20,
@@ -29,7 +29,7 @@
     },
     {
       "casino": "Spinlander Casino",
-      "welcome_bonus": "120% up to 888 EUR, + 250 free spins",
+      "welcome_bonus": "120% up to 888 EUR + 250 free spins",
       "wagering_multiplier": 45,
       "wagering_basis": "deposit+bonus",
       "min_deposit": 20,

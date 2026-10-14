@@ -5,9 +5,9 @@ Pulls welcome-bonus data for three online casinos from one public source
 bonus terms into structured fields, writes `data/bonuses.json`, and generates a mobile-readable
 `index.html` table from that JSON.
 
-**Live page:** <https://gunn3rfourlif3.github.io/casino-scraper/>
+**Live page:** <https://gunn3rfourlif3.github.io/casino-scraper-bonus/>
 
-**Repo:** <https://github.com/gunn3rfourlif3/casino-scraper>
+**Repo:** <https://github.com/gunn3rfourlif3/casino-scraper-bonus>
 
 ## Fields
 
@@ -27,8 +27,21 @@ amount of money) and `max_bonus`.
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
+```
 
+The extraction step can run against either a local model or the Claude API.
+
+**Local, via [Ollama](https://ollama.com) — no API key, no cost:**
+
+```bash
+ollama pull llama3.1:8b
+python scrape.py --provider ollama
+```
+
+**Claude API:**
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
 python scrape.py
 ```
 
@@ -39,11 +52,15 @@ GitHub Pages at the root.
 Options:
 
 ```bash
-python scrape.py --check-robots  # report robots.txt permission only, no API calls
+python scrape.py --check-robots  # report robots.txt permission only, no model calls
 python scrape.py --no-build      # write JSON only
 python build_page.py             # rebuild the page from existing JSON
-python tests/test_parsing.py     # parsing + validation tests, no network or API needed
-MODEL=claude-opus-5 python scrape.py   # the extraction model is configurable
+python tests/test_parsing.py     # parsing + validation tests, no network or model needed
+
+# the model is configurable on either provider
+OLLAMA_MODEL=qwen2.5:7b python scrape.py --provider ollama
+MODEL=claude-opus-5 python scrape.py
+OLLAMA_HOST=http://192.168.1.50:11434 python scrape.py --provider ollama
 ```
 
 ## How it works

@@ -5,6 +5,7 @@ the HTML reduction and the post-extraction validation.
     python -m pytest tests/ -q      (or: python tests/test_parsing.py)
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -12,7 +13,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import urllib.robotparser  # noqa: E402
 
-from scrape import TARGETS, USER_AGENT, extract_bonus_text, validate  # noqa: E402
+from scrape import (  # noqa: E402
+    TARGETS,
+    USER_AGENT,
+    _as_number,
+    _normalise_bonus,
+    extract_bonus_text,
+    validate,
+)
 
 # The relevant part of AskGamblers' robots.txt as served on 2026-10-14. Pinned here
 # so the permission check is testable without the network.
@@ -131,6 +139,69 @@ def test_robots_still_blocks_what_it_should():
         "https://www.askgamblers.com/api",
     ):
         assert not parser.can_fetch(USER_AGENT, blocked), f"should be blocked: {blocked}"
+
+
+def test_as_number_handles_what_small_models_return():
+    """Local models return '40xb' or '€15' where the prompt asked for a number."""
+    assert _as_number(40) == 40
+    assert _as_number("40xb") == 40
+    assert _as_number("€15") == 15
+    assert _as_number("15 EUR") == 15
+    assert _as_number("1,000") == 1000
+    assert _as_number("19.99") == 19.99
+    assert _as_number(None) is None
+    assert _as_number("N/A") is None
+
+
+def test_ollama_host_normalisation():
+    """
+    Ollama uses OLLAMA_HOST for the address its server BINDS to, so on a
+    configured machine it often holds "0.0.0.0" rather than a URL. 0.0.0.0 is
+    not a valid destination for a client.
+    """
+    import importlib
+
+    import scrape as scrape_module
+
+    cases = {
+        "0.0.0.0": "http://127.0.0.1:11434",
+        "0.0.0.0:11434": "http://127.0.0.1:11434",
+        ":11434": "http://localhost:11434",
+        "localhost": "http://localhost:11434",
+        "": "http://localhost:11434",
+        "http://192.168.1.50:11434/": "http://192.168.1.50:11434",
+    }
+    original = os.environ.get("OLLAMA_HOST")
+    try:
+        for value, expected in cases.items():
+            os.environ["OLLAMA_HOST"] = value
+            importlib.reload(scrape_module)
+            got = scrape_module.ollama_base_url()
+            assert got == expected, f"{value!r} gave {got}, expected {expected}"
+    finally:
+        if original is None:
+            os.environ.pop("OLLAMA_HOST", None)
+        else:
+            os.environ["OLLAMA_HOST"] = original
+        importlib.reload(scrape_module)
+
+
+def test_bonus_currency_is_normalised():
+    """One prompt, three renderings - so the shape is enforced in code."""
+    assert _normalise_bonus("100% up to €500 + 100 Free Spins") == (
+        "100% up to 500 EUR + 100 free spins"
+    )
+    assert _normalise_bonus("250% up to EUR1000 + 250 Free Spins") == (
+        "250% up to 1000 EUR + 250 free spins"
+    )
+    assert _normalise_bonus("150% up to $400 + 60 Free Spins") == (
+        "150% up to 400 USD + 60 free spins"
+    )
+    # Already correct, and an unlisted currency: both left alone.
+    assert _normalise_bonus("200% up to 1000000 COP + 100 free spins") == (
+        "200% up to 1000000 COP + 100 free spins"
+    )
+    assert _normalise_bonus(None) is None
 
 
 def test_validate_catches_implausible_numbers():
