@@ -5,7 +5,7 @@ Pulls welcome-bonus data for three online casinos from one public source
 bonus terms into structured fields, writes `data/bonuses.json`, and generates a mobile-readable
 `index.html` table from that JSON.
 
-**Live page:** <https://gunn3rfourlif3.github.io/casino-scraper-bonus/>
+**Live page:** <https://bonuses.zaaka.io/>
 
 **Repo:** <https://github.com/gunn3rfourlif3/casino-scraper-bonus>
 
